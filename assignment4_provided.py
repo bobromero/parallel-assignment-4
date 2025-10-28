@@ -84,43 +84,41 @@ def mySendAll(sock, data):
     return 1
 
 
-def sendToSockets(to_lst, message):
+def sendToSockets(to_lst, message, sender_sock):
     for s in to_lst:
+        print(
+            "block list:",
+            users[socks[s][0]][2],
+            "sendername",
+            socks[sender_sock],
+            "condition:",
+            socks[sender_sock] in users[socks[s][0]][2],
+        )
+        if socks[sender_sock][0] in users[socks[s][0]][2]:
+            continue
         mySendAll(s, message.encode())
 
 
-def sendMessageToRoom(room_name, message):
-    sock_list = rooms[room_name]
-    sendToSockets(sock_list, message)
+def sendMessageToRoom(room_number, message, sock):
+    sock_list = rooms[room_number][1]
+    sendToSockets(sock_list, message, sock)
 
 
 def handleShout(sock, split_message):
     username = socks[sock][0]
     message = " ".join(split_message[1:])
-    sendToSockets(socks, f"!!{username}!!: { message }\n")
+    sendToSockets(socks, f"!!{username}!!: { message }\n", sock)
     return f""
 
 
 def handleRegister(split_message, sock):
     if len(split_message) != 3:
-        mySendAll(
-            socks[sock],
-            "Usage: register username password\n".encode(),
-        )
-        return "ran register command with wrong number of args"
-    mySendAll(
-        socks[sock],
-        f"register: {split_message[1]} {split_message[2]}".encode(),
-    )
+        return "Usage: register username password\n"
     if split_message[1] in users.keys():
-        mySendAll(
-            socks[sock],
-            f"Username {split_message[1]} is already taken. Please choose another username.\n".encode(),
-        )
-        return "ran register command with existing username"
+        return f"Username {split_message[1]} is already taken. Please choose another username.\n"
     users[split_message[1]] = [split_message[2], "", []]
     saveUsers()
-    return f"User {split_message[1]} registered"
+    return f"User {split_message[1]} registered\n"
 
 
 guest_prompt = "You login as a guest. The only commands that you can use are 'register username password', 'exit', and 'quit'."
@@ -129,7 +127,10 @@ guest_prompt = "You login as a guest. The only commands that you can use are 're
 def handleChangeInfo(sock, split_message):
     username = socks[sock][0]
     if len(split_message) < 2:
-        return f"Info: {users[username][1]}\n"
+        info = users[username][1]
+        if info == "":
+            info = "-"
+        return f"Info: {info}\n"
     info = " ".join(split_message[1:])
     users[username][1] = info
     saveUsers()
@@ -137,13 +138,13 @@ def handleChangeInfo(sock, split_message):
 
 
 def handleStatus(sock, split_message):
-    username = split_message[1]
-    if username not in users.keys():
-        return f"User {username} does not exist.\n"
+    username = ""
     if len(split_message) != 2:
         username = socks[sock][0]
     else:
         username = split_message[1]
+    if username not in users.keys():
+        return f"User {username} does not exist.\n"
     print("handleStatus for", username)
     info = users[username][1]
     if info == "":
@@ -175,6 +176,7 @@ def handleStart(sock, split_message):
     sendToSockets(
         socks,
         f"\n!!system!!: {socks[sock][0]} created room {room_number}, topic: {room_topic}\n",
+        None,
     )
     return f""
 
@@ -186,7 +188,7 @@ def handleRooms(sock, split_message):
     # num_participants Participant(s): [list of usernames]
     response = ""
     if len(rooms) <= 1:
-        response += f"{len(rooms)} room:\n"
+        response += f"{len(rooms)} room:\n\n"
     else:
         response += f"{len(rooms)} rooms:\n"
     for room_num in rooms.keys():
@@ -209,18 +211,19 @@ def clearRoom(room_number, room_topic, sock):
     if room_number in rooms:
         sendToSockets(
             rooms[room_number][1],
-            f"\n!!system!!: Room {room_number}(topic: {room_topic}) closed",
+            f"\n!!system!!: Room {room_number}(topic: {room_topic}) closed\n",
+            None,
         )
         rooms.pop(room_number)
 
 
 def handleLeave(sock, split_message):
     room_number = split_message[1]
-    room_topic = rooms[room_number][0]
     if room_number not in rooms:
         return f"Room {room_number} does not exist.\n"
     if sock not in rooms[room_number][1]:
         return f"You are not in room {room_number}.\n"
+    room_topic = rooms[room_number][0]
     if rooms[room_number][1][0] == sock:
         # room creator is leaving, close the room
         clearRoom(room_number, room_topic, sock)
@@ -241,7 +244,7 @@ def handleTell(sock, split_message):
     message = " ".join(split_message[2:])
     for s in socks.keys():
         if socks[s][0] == to_name:
-            sendToSockets([s], f"{from_name}: {message}\n")
+            sendToSockets([s], f"{from_name}: {message}\n", sock)
             break
     return f""
 
@@ -249,6 +252,8 @@ def handleTell(sock, split_message):
 def handleBlock(sock, split_message):
     username = socks[sock][0]
     user_to_block = split_message[1]
+    if user_to_block == username:
+        return "Sorry, you cannot block yourself.\n"
     if user_to_block not in users.keys():
         return f"User {user_to_block} does not exist.\n"
     if user_to_block in users[username][2]:
@@ -279,10 +284,10 @@ def handleSay(sock, split_message):
     if sock not in rooms[room_number][1]:
         return f"You are not in room {room_number}.\n"
     # send message to all users in room
-    for s in rooms[room_number][1]:
-        if s != sock:
-            mySendAll(s, f"[Room {room_number}] *{username}* {message}\n".encode())
-    return f"Message sent to room {room_number}.\n"
+    sendMessageToRoom(
+        room_number, f"[Room {room_number}] *{username}*: {message}\n", sock
+    )
+    return f""
 
 
 def selectCommand(message, sock, isGuest):
@@ -412,12 +417,16 @@ def authenticateUser(sock):
             break
     # create entry in socks
     socks[sock] = [username, 0]
+    return username
 
 
 def handleOneClient(sock):
-    authenticateUser(sock)
+    username = authenticateUser(sock)
     mySendAll(sock, welcomeMsg.encode())
-    mySendAll(sock, helpMessage.encode())
+    if username == "guest":
+        mySendAll(sock, guest_prompt.encode())
+    else:
+        mySendAll(sock, helpMessage.encode())
     mySendAll(sock, prompt(socks[sock][0], socks[sock][1]).encode())
     handleUser(sock)
 
