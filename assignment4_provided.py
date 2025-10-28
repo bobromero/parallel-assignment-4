@@ -105,6 +105,8 @@ def sendMessageToRoom(room_number, message, sock):
 
 
 def handleShout(sock, split_message):
+    if len(split_message) < 2:
+        return "Usage: shout <Msg>\n"
     username = socks[sock][0]
     message = " ".join(split_message[1:])
     sendToSockets(socks, f"!!{username}!!: { message }\n", sock)
@@ -113,7 +115,7 @@ def handleShout(sock, split_message):
 
 def handleRegister(split_message, sock):
     if len(split_message) != 3:
-        return "Usage: register username password\n"
+        return "Usage: register <user> <passwd>\n"
     if split_message[1] in users.keys():
         return f"Username {split_message[1]} is already taken. Please choose another username.\n"
     users[split_message[1]] = [split_message[2], "", []]
@@ -121,7 +123,7 @@ def handleRegister(split_message, sock):
     return f"User {split_message[1]} registered\n"
 
 
-guest_prompt = "You login as a guest. The only commands that you can use are 'register username password', 'exit', and 'quit'."
+guest_prompt = "You login as a guest. The only commands that you can use are \n'register username password', 'exit', and 'quit'.\n"
 
 
 def handleChangeInfo(sock, split_message):
@@ -200,6 +202,8 @@ def handleRooms(sock, split_message):
 
 
 def handleJoin(sock, split_message):
+    if len(split_message) != 2:
+        return "Usage: join <room_number>\n"
     room_number = split_message[1]
     if room_number not in rooms:
         return f"Room {room_number} does not exist.\n"
@@ -218,6 +222,8 @@ def clearRoom(room_number, room_topic, sock):
 
 
 def handleLeave(sock, split_message):
+    if len(split_message) != 2:
+        return "Usage: leave <room_number>\n"
     room_number = split_message[1]
     if room_number not in rooms:
         return f"Room {room_number} does not exist.\n"
@@ -235,6 +241,8 @@ def handleLeave(sock, split_message):
 
 # tell the sender if they are blocked
 def handleTell(sock, split_message):
+    if len(split_message) < 3:
+        return "Usage: tell <user> <Msg>\n"
     to_name = split_message[1]
     if to_name not in users.keys():
         return f"User {to_name} does not exist.\n"
@@ -250,6 +258,8 @@ def handleTell(sock, split_message):
 
 
 def handleBlock(sock, split_message):
+    if len(split_message) != 2:
+        return "Usage: block <user>\n"
     username = socks[sock][0]
     user_to_block = split_message[1]
     if user_to_block == username:
@@ -264,6 +274,8 @@ def handleBlock(sock, split_message):
 
 
 def handleUnblock(sock, split_message):
+    if len(split_message) != 2:
+        return "Usage: unblock <user>\n"
     username = socks[sock][0]
     user_to_unblock = split_message[1]
     if user_to_unblock not in users.keys():
@@ -276,6 +288,8 @@ def handleUnblock(sock, split_message):
 
 
 def handleSay(sock, split_message):
+    if len(split_message) < 3:
+        return "Usage: say <room_number> <Msg>\n"
     room_number = split_message[1]
     message = " ".join(split_message[2:])
     username = socks[sock][0]
@@ -298,7 +312,7 @@ def selectCommand(message, sock, isGuest):
     if cmd == "register":
         return handleRegister(split_message, sock)
     if isGuest:
-        return guest_prompt.encode()
+        return guest_prompt
     match (cmd):
         case "who":
             return handleWho(sock, split_message)
@@ -361,7 +375,9 @@ def handleUser(sock):
             cmdCount = socks[sock][1]
             socks[sock][1] += 1
             if cmd == "" or len(tmp) == 0:
-                mySendAll(sock, prompt(username, cmdCount).encode())
+                if username == "guest":
+                    mySendAll(sock, guest_prompt.encode())
+                mySendAll(sock, prompt(username, cmdCount + 1).encode())
                 continue
             command = cmd.split()[0].lower()
             if command == "quit" or command == "exit":
