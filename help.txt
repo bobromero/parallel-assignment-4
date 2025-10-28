@@ -1,0 +1,19 @@
+Commands supported ([] optional field, <> required field):
+
+  who                      # List all online users
+  status [user]            # Display user information
+  start <topic>            # Start a room for a topic
+  rooms                    # List all current rooms
+  join <room number>       # Join a room
+  leave <room number>      # Leave a room
+  shout <message>          # Broadcast <message> to everyone online
+  tell <user> <message>    # Tell <message> only to the user
+  info [Info txt]          # Change or show your information text
+  quit                     # Logout
+  exit                     # Logout
+  block <user>             # Block a user
+  unblock <user>           # Unblock a user
+  say <room number> <msg>  # Broadcast <msg> to everyone in room <room number>
+  help                     # Print this message
+  register <user> <passwd> # Register a new user
+
